@@ -158,9 +158,37 @@ importes usan formato numérico español (1.234,56) con símbolo corto: `1.234,5
 
 ## Persistencia
 
-Lanzamientos, análisis de creativos e informes se guardan en `data/store.json`
+Lanzamientos, análisis de creativos e informes se guardan en un `store.json`
 (escritura atómica vía fichero temporal + rename, y en cola para que dos peticiones
-simultáneas no se pisen). Está en `.gitignore`: haz copia si te importa.
+simultáneas no se pisen). La carpeta es `./data` por defecto, o `DATA_DIR` si esa
+variable está definida — ver "Desplegar en Render" más abajo. Localmente `data/`
+está en `.gitignore`: haz copia si te importa.
+
+## Desplegar en Render
+
+**El disco de un Web Service normal en Render es efímero**: cada redeploy (cada
+`git push`, cada reinicio del contenedor) lo borra. Sin nada más, `store.json`
+volvería a estar vacío en cada deploy — perderías lanzamientos, análisis e
+informes guardados.
+
+Este repo incluye `render.yaml` con un **Persistent Disk** de 1 GB montado en
+`/data`, y `DATA_DIR=/data` para que el store escriba ahí en vez de en el
+filesystem efímero del contenedor. Con eso:
+
+1. En Render: **New → Blueprint**, apunta al repo, y usa este `render.yaml`
+   (requiere plan **Starter** o superior — el plan Free no permite discos).
+2. En la pestaña **Environment** del servicio, rellena las claves reales:
+   `WINDSOR_API_KEY`, `WINDSOR_ACCOUNT`, `ANTHROPIC_API_KEY` y, si quieres
+   sincronización en vivo, `META_ACCESS_TOKEN` + `META_AD_ACCOUNT_ID`. El
+   `render.yaml` las declara como `sync: false` a propósito: son secretos y no
+   van en un fichero versionado.
+3. Despliega. La URL de Render sirve el dashboard igual para cualquier
+   dispositivo — las claves viven solo en el servidor, nunca en el navegador,
+   así que no hay nada que configurar por dispositivo.
+
+Si despliegas sin Blueprint (servicio manual) y sin disco persistente, el panel
+funciona igual pero **cualquier lanzamiento, análisis o informe guardado
+desaparece en el próximo deploy**. Está bien para probar; no para uso real.
 
 ## Diseño
 

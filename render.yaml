@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: aurum-ads-dashboard
+    runtime: node
+    plan: starter # Persistent Disk requires Starter or above — Free tier cannot mount one.
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4321
+      # DATA_DIR points at the mounted disk below, so launches, creative
+      # analyses and AI reports survive redeploys instead of resetting to
+      # empty every time this service rebuilds.
+      - key: DATA_DIR
+        value: /data
+      # Set the real values in the Render dashboard (Environment tab) —
+      # secrets don't belong in this file, which is meant to be committed.
+      - key: WINDSOR_API_KEY
+        sync: false
+      - key: WINDSOR_ACCOUNT
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_AD_ACCOUNT_ID
+        sync: false
+    disk:
+      name: aurum-data
+      mountPath: /data
+      sizeGB: 1

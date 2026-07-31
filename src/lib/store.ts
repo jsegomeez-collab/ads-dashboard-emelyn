@@ -2,7 +2,18 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Store } from "./types";
 
-const DIR = path.join(process.cwd(), "data");
+/**
+ * Where launches, creative analyses, and AI reports live. Locally this is just
+ * `./data` inside the project. On Render (and most PaaS) the app's own
+ * filesystem is wiped on every redeploy, so production must point DATA_DIR at
+ * a mounted persistent disk instead — see render.yaml, which sets DATA_DIR to
+ * the disk's mount path. Without a persistent disk, set DATA_DIR to it anyway
+ * and the store simply won't survive a redeploy — better to know that than to
+ * silently lose data.
+ */
+const DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(process.cwd(), "data");
 const FILE = path.join(DIR, "store.json");
 
 const DEFAULT_STORE: Store = {
