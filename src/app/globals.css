@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   Aurum — design tokens
+   Gold + pastel white. Every categorical hex below was produced by the
+   snap-to-passing search and cleared the validator in BOTH modes on this
+   surface (adjacent pairlist): CVD ΔE 18.2 light / 13.8 dark, normal-vision
+   33.7 / 28.2. Slot order is the CVD-safety mechanism — never reorder it,
+   and never assign a slot by rank.
+
+   Three light slots and five dark slots sit below 3:1 on their surface, so the
+   relief rule is in force account-wide: every chart ships direct labels and a
+   table view. Both are implemented; don't remove them.
+   =========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --plane: #f3eee2;
+  --surface-1: #faf8f3;
+  --surface-2: #f6f2e9;
+  --surface-raised: #fffdf8;
+
+  /* ink */
+  --text-primary: #1a1712;
+  --text-secondary: #574f42;
+  --text-muted: #8a8172;
+
+  /* chrome */
+  --gridline: #e7e0d0;
+  --baseline: #cdc4ae;
+  --hairline: rgba(26, 23, 18, 0.1);
+  --hairline-strong: rgba(26, 23, 18, 0.16);
+
+  /* brand — decorative only, never a data encoding */
+  --gold: #bd8800;
+  --gold-bright: #d4af37;
+  --gold-wash: rgba(189, 136, 0, 0.09);
+  --gold-edge: rgba(189, 136, 0, 0.32);
+
+  /* categorical — fixed order */
+  --series-1: #bd8800;
+  --series-2: #673ca0;
+  --series-3: #3d9d46;
+  --series-4: #922764;
+  --series-5: #00afa7;
+  --series-6: #9c2436;
+  --series-7: #4993ee;
+  --series-8: #953600;
+
+  /* sequential (gold, light→dark) — validated ordinal */
+  --seq-1: #aa7c00;
+  --seq-2: #926600;
+  --seq-3: #7b5000;
+  --seq-4: #653b00;
+  --seq-5: #502600;
+  --seq-6: #3b1100;
+
+  /* status — fixed scale, never themed, always shipped with icon + label */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --delta-up: #006300;
+  --delta-down: #b3261e;
+
+  --shadow-soft: 0 1px 2px rgba(26, 23, 18, 0.04), 0 8px 24px rgba(26, 23, 18, 0.06);
+  --shadow-lift: 0 2px 4px rgba(26, 23, 18, 0.05), 0 18px 44px rgba(26, 23, 18, 0.1);
+}
+
+/* Dark values under both scopes: the media query covers the OS setting, the
+   data-theme scope covers the in-app toggle, which must win either way. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plane: #0c0b08;
+    --surface-1: #14120e;
+    --surface-2: #1b1813;
+    --surface-raised: #221e17;
+
+    --text-primary: #f8f4ea;
+    --text-secondary: #bdb4a2;
+    --text-muted: #8a8172;
+
+    --gridline: #272319;
+    --baseline: #3c3527;
+    --hairline: rgba(248, 244, 234, 0.1);
+    --hairline-strong: rgba(248, 244, 234, 0.18);
+
+    --gold: #d4af37;
+    --gold-bright: #e8c65c;
+    --gold-wash: rgba(212, 175, 55, 0.1);
+    --gold-edge: rgba(212, 175, 55, 0.34);
+
+    --series-1: #be8800;
+    --series-2: #7044ac;
+    --series-3: #2d9539;
+    --series-4: #9e2e6d;
+    --series-5: #00a29b;
+    --series-6: #a82b3c;
+    --series-7: #025eb8;
+    --series-8: #a13e00;
+
+    --seq-1: #845500;
+    --seq-2: #976700;
+    --seq-3: #ab7a00;
+    --seq-4: #bf8e00;
+    --seq-5: #d3a11c;
+    --seq-6: #e8b53b;
+
+    --delta-up: #0ca30c;
+    --delta-down: #ef6a5f;
+
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.45);
+    --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0c0b08;
+  --surface-1: #14120e;
+  --surface-2: #1b1813;
+  --surface-raised: #221e17;
+
+  --text-primary: #f8f4ea;
+  --text-secondary: #bdb4a2;
+  --text-muted: #8a8172;
+
+  --gridline: #272319;
+  --baseline: #3c3527;
+  --hairline: rgba(248, 244, 234, 0.1);
+  --hairline-strong: rgba(248, 244, 234, 0.18);
+
+  --gold: #d4af37;
+  --gold-bright: #e8c65c;
+  --gold-wash: rgba(212, 175, 55, 0.1);
+  --gold-edge: rgba(212, 175, 55, 0.34);
+
+  --series-1: #be8800;
+  --series-2: #7044ac;
+  --series-3: #2d9539;
+  --series-4: #9e2e6d;
+  --series-5: #00a29b;
+  --series-6: #a82b3c;
+  --series-7: #025eb8;
+  --series-8: #a13e00;
+
+  --seq-1: #845500;
+  --seq-2: #976700;
+  --seq-3: #ab7a00;
+  --seq-4: #bf8e00;
+  --seq-5: #d3a11c;
+  --seq-6: #e8b53b;
+
+  --delta-up: #0ca30c;
+  --delta-down: #ef6a5f;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.55);
+}
+
+@theme inline {
+  --color-plane: var(--plane);
+  --color-surface: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-raised: var(--surface-raised);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-hairline: var(--hairline);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+}
+
+* { border-color: var(--hairline); }
+
+html, body {
+  background: var(--plane);
+  color: var(--text-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* barely-there gold bloom — decoration, never behind a mark */
+  background-image:
+    radial-gradient(900px 420px at 12% -8%, var(--gold-wash), transparent 60%),
+    radial-gradient(700px 380px at 92% 0%, var(--gold-wash), transparent 62%);
+  background-attachment: fixed;
+}
+
+/* ---------- primitives ---------- */
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+/* Charts and tables lift slightly on hover — enough to signal "this is a live
+   surface you can interact with", not enough to bounce the layout. */
+.card:hover { border-color: var(--hairline-strong); box-shadow: var(--shadow-lift); }
+
+/* ---------- KPI tiles ---------- */
+
+.kpi {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 15px 16px 14px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.kpi:hover {
+  border-color: var(--gold-edge);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-1px);
+}
+
+/* Hairline of gold along the top edge — the brand cue, at 1px so it never
+   competes with the data. */
+.kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-edge) 30%, var(--gold-edge) 70%, transparent);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.kpi:hover::before { opacity: 1; }
+
+.kpi-featured {
+  background:
+    radial-gradient(120% 140% at 0% 0%, var(--gold-wash), transparent 58%),
+    linear-gradient(180deg, var(--surface-raised), var(--surface-1));
+  border-color: var(--gold-edge);
+}
+.kpi-featured::before { opacity: 1; }
+
+/* Gold only on the headline figures; body numbers stay in text tokens. */
+.kpi-gold {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold) 65%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.card-lift {
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface-1));
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lift);
+}
+
+/* the one gold flourish that carries the brand */
+.gold-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-edge) 18%, var(--gold-edge) 82%, transparent);
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wordmark { letter-spacing: 0.30em; }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+.hero-figure {
+  font-size: clamp(2.1rem, 4.2vw, 3.1rem);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+.field {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 13px;
+  color: var(--text-primary);
+  width: 100%;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--gold-edge);
+  box-shadow: 0 0 0 3px var(--gold-wash);
+}
+.field::placeholder { color: var(--text-muted); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 560;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--gold-edge); background: var(--gold-wash); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-gold {
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  border-color: transparent;
+  color: #17130a;
+  font-weight: 640;
+}
+.btn-gold:hover:not(:disabled) { filter: brightness(1.06); background: linear-gradient(180deg, var(--gold-bright), var(--gold)); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+.chip[data-on="true"] {
+  border-color: var(--gold-edge);
+  background: var(--gold-wash);
+  color: var(--text-primary);
+  font-weight: 560;
+}
+
+/* scrollbars, quietly */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--baseline); border-radius: 6px; border: 3px solid var(--plane); }
+
+/* Wide content scrolls inside its own box — the page never scrolls sideways. */
+.scroll-x { overflow-x: auto; }
+
+@media print, (forced-colors: active) {
+  /* texture is the accessibility channel; never decorative, never on by default */
+  .textured { fill: url(#aurum-hatch); }
+}
+
+@keyframes shimmer { 0% { background-position: -520px 0; } 100% { background-position: 520px 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 8%, var(--surface-raised) 22%, var(--surface-2) 36%);
+  background-size: 900px 100%;
+  animation: shimmer 1.5s linear infinite;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
