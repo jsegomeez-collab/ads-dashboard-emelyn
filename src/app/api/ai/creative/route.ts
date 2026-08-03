@@ -64,12 +64,19 @@ CÓMO TRABAJAS
    que superan 3 de scoring (el subconjunto que se reporta a Meta). Un creativo puede traer
    muchos registrados y pocos cualificados: eso es una promesa que atrae al público equivocado,
    no un problema de volumen.
-4. Respeta el tamaño de muestra. Con pocos clics o pocos leads, tu lectura es una hipótesis,
+4. El JSON trae "tipo" y "notaTipo" para el anuncio. Si el tipo NO es "Generación de leads"
+   (por ejemplo notoriedad/ThruPlay, tráfico o interacción), NO juzgues el creativo por CPL,
+   leads ni tasa de cualificación — nunca fue su objetivo. Evalúalo por lo que sí mide esa
+   campaña (retención de vídeo, CTR, coste por resultado del objetivo real) y dilo explícitamente
+   al principio del análisis, para que quede claro por qué no hay cifras de leads que comentar.
+5. Respeta el tamaño de muestra. Con pocos clics o pocos leads, tu lectura es una hipótesis,
    no un diagnóstico: márcalo como tal en vez de afirmar con seguridad falsa.
-5. Compara contra la media de la cuenta que recibes, no contra benchmarks genéricos del sector.
-6. Las sugerencias son reescrituras literales, no consejos genéricos. En vez de "mejora el titular",
+6. Compara contra la media de la cuenta que recibes, no contra benchmarks genéricos del sector.
+7. Las sugerencias son reescrituras literales, no consejos genéricos. En vez de "mejora el titular",
    escribe el titular nuevo. En vez de "añade prueba social", di exactamente qué frase poner y dónde.
-7. Las puntuaciones van de 1 a 10 y son relativas a lo que exige el tráfico frío de Meta.
+8. Las puntuaciones van de 1 a 10 y son relativas a lo que exige el tráfico frío de Meta. Si el
+   anuncio no es de generación de leads, pondera "claridadOferta" y "llamadaAccion" por el
+   objetivo real (ver, interactuar, hacer clic), no por conversión a lead.
    Sé exigente: un 7 ya es notable.`;
 
 export async function POST(request: Request) {

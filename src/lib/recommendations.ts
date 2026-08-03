@@ -1,4 +1,5 @@
 import { computeMetrics, groupBy, type Slice } from "./metrics";
+import { classifySlice, isLeadGen, KIND_LABEL, splitByLeadGen, type CampaignKind } from "./objective";
 import type { AdRow, Metrics } from "./types";
 
 /**
@@ -11,12 +12,20 @@ import type { AdRow, Metrics } from "./types";
  *
  * Every rule respects the same significance bar as the rest of the app: a slice
  * without enough traffic produces no verdict, only a note that it has no read.
+ *
+ * Every lead/CPL rule below is scoped to lead-generation campaigns ONLY (see
+ * `objective.ts`). A ThruPlay (video-views) or traffic/"follow me" campaign has
+ * zero leads by design — it was never optimised to produce one — so folding its
+ * spend into the account benchmark or flagging it "dead" is comparing it to a
+ * bar it was never aimed at. This used to happen: "1. THRUPLAYS" and
+ * "2. FOLLOWMEADS" were flagged as failed lead campaigns and the AI copilot
+ * recommended reallocating their budget as if it were wasted.
  */
 
 export const MIN_LINK_CLICKS = 50;
 export const MIN_LEADS = 5;
 
-export type Severity = "critical" | "serious" | "warning" | "good";
+export type Severity = "critical" | "serious" | "warning" | "good" | "info";
 
 export interface Recommendation {
   id: string;
@@ -49,13 +58,21 @@ const significant = (s: Slice) =>
   s.metrics.linkClicks >= MIN_LINK_CLICKS || s.metrics.leads >= MIN_LEADS;
 
 export function buildRecommendations(rows: AdRow[], currency = "USD"): Recommendation[] {
-  const account = computeMetrics(rows);
-  if (!rows.length || !account.spend) return [];
+  if (!rows.length) return [];
 
-  const ads = groupBy(rows, "adName");
-  const adsets = groupBy(rows, "adset");
+  const { leadGen, other } = splitByLeadGen(rows);
+  const account = computeMetrics(leadGen);
   const out: Recommendation[] = [];
   const m = (n: number) => money(n, currency);
+
+  // Non-lead-gen spend gets its own informational card below, unconditionally
+  // (even if leadGen is empty) — bail out of the lead-specific rules only.
+  if (!leadGen.length || !account.spend) {
+    return [...out, ...nonLeadGenNotice(other, m)].sort((a, b) => weight(b.severity) - weight(a.severity));
+  }
+
+  const ads = groupBy(leadGen, "adName");
+  const adsets = groupBy(leadGen, "adset");
 
   /* --- 1. Traffic paid for that produced nothing ------------------------ */
   const dead = ads
@@ -189,15 +206,54 @@ export function buildRecommendations(rows: AdRow[], currency = "USD"): Recommend
     });
   }
 
+  out.push(...nonLeadGenNotice(other, m));
+
   return out.sort((a, b) => weight(b.severity) - weight(a.severity));
 }
 
-const weight = (s: Severity) => ({ critical: 4, serious: 3, warning: 2, good: 1 })[s];
+/**
+ * The disclosure that makes the split visible rather than silent: how much the
+ * account spent outside the lead funnel, and on what. Informational, not a
+ * problem — these campaigns are doing exactly what they were built to do.
+ */
+function nonLeadGenNotice(other: AdRow[], m: (n: number) => string): Recommendation[] {
+  if (!other.length) return [];
+
+  const total = other.reduce((s, r) => s + r.spend, 0);
+  if (!total) return [];
+
+  const byKind = new Map<CampaignKind, { spend: number; campaigns: Set<string> }>();
+  for (const r of other) {
+    const k = classifySlice([r]);
+    const entry = byKind.get(k) ?? { spend: 0, campaigns: new Set<string>() };
+    entry.spend += r.spend;
+    entry.campaigns.add(r.campaign);
+    byKind.set(k, entry);
+  }
+
+  const breakdown = [...byKind.entries()]
+    .sort((a, b) => b[1].spend - a[1].spend)
+    .map(([k, v]) => `${KIND_LABEL[k]}: ${m(v.spend)} (${[...v.campaigns].join(", ")})`)
+    .join(" · ");
+
+  return [
+    {
+      id: "non-leadgen-spend",
+      severity: "info",
+      title: `${m(total)} fuera del embudo de leads, sin juzgar por CPL`,
+      evidence: breakdown,
+      action:
+        "Son campañas de notoriedad, tráfico o interacción — no están pensadas para generar leads, así que no entran en el CPL de la cuenta ni en las recomendaciones de arriba. Si alguna sí debería generar leads, revisa su objetivo en el Ads Manager.",
+    },
+  ];
+}
+
+const weight = (s: Severity) => ({ critical: 4, serious: 3, warning: 2, good: 1, info: 0 })[s];
 
 /**
  * Is the CPL drifting? Compares the most recent third of the window against the
  * rest. Needs at least six days — below that a single bad day dominates and the
- * "trend" is noise.
+ * "trend" is noise. Caller passes a lead-gen-only daily series — see Dashboard.
  */
 export function cplTrend(
   daily: { date: string; spend: number; leads: number }[],
@@ -229,3 +285,4 @@ export function cplTrend(
 }
 
 export type { Metrics };
+export { isLeadGen, classifySlice, KIND_LABEL, type CampaignKind };

@@ -3,6 +3,7 @@ import { fetchAccountCurrency, getAdRows } from "@/lib/windsor";
 import { fetchMetaCurrency, fetchMetaRows, metaConfigured } from "@/lib/meta";
 import { isRangeId, previousWindow, resolveRange } from "@/lib/ranges";
 import { computeMetrics } from "@/lib/metrics";
+import { splitByLeadGen } from "@/lib/objective";
 import type { DateRange } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,16 @@ export async function GET(request: Request) {
     if (wantsPrevious) {
       const prev = previousWindow(range);
       const { rows } = await getAdRows({ id: "custom", from: prev.from, to: prev.to }, force);
-      return NextResponse.json({ window: prev, metrics: computeMetrics(rows) });
+      // Two variants: `metrics` (whole account — spend, impressions, clicks)
+      // and `leadMetrics` (lead-gen campaigns only — everything downstream of
+      // registrations). Mixing ThruPlay/traffic spend into the lead benchmark
+      // is exactly the bug this endpoint used to have.
+      const { leadGen } = splitByLeadGen(rows);
+      return NextResponse.json({
+        window: prev,
+        metrics: computeMetrics(rows),
+        leadMetrics: computeMetrics(leadGen),
+      });
     }
 
     /**

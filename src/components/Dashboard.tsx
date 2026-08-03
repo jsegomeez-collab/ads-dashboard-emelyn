@@ -11,6 +11,7 @@ import { deltaOf, KpiTile, type Direction } from "./kpi";
 import { ArrivalWarning, CostLadder, MetricStrip, Pacing } from "./insights";
 import { ActionPlan } from "./actions";
 import { buildRecommendations, cplTrend, MIN_LEADS, MIN_LINK_CLICKS } from "@/lib/recommendations";
+import { splitByLeadGen } from "@/lib/objective";
 import AdTable from "./AdTable";
 import LaunchPanel from "./LaunchPanel";
 import CreativeLab from "./CreativeLab";
@@ -27,7 +28,10 @@ type TabId = (typeof TABS)[number]["id"];
 
 export interface PreviousPeriod {
   window: { from: string; to: string };
+  /** whole account — used for the spend/impressions/clicks tiles */
   metrics: ReturnType<typeof computeMetrics>;
+  /** lead-gen campaigns only — used for every metric downstream of registrations */
+  leadMetrics: ReturnType<typeof computeMetrics>;
 }
 
 interface SyncState {
@@ -318,7 +322,7 @@ export default function Dashboard({ aiConfigured }: { aiConfigured: boolean }) {
         ) : null}
 
         {tab === "resumen" && rows ? (
-          <Overview rows={scoped} metrics={metrics} previous={previous} daily={daily} byCampaign={byCampaign} byAdset={byAdset} byAd={byAd} range={range} currency={currency} />
+          <Overview rows={scoped} metrics={metrics} previous={previous} daily={daily} byCampaign={byCampaign} byAdset={byAdset} range={range} currency={currency} />
         ) : null}
 
         {tab === "anuncios" && rows ? (
@@ -444,7 +448,6 @@ function Overview({
   daily,
   byCampaign,
   byAdset,
-  byAd,
   range,
 }: {
   rows: AdRow[];
@@ -454,9 +457,24 @@ function Overview({
   daily: ReturnType<typeof dailySeries>;
   byCampaign: ReturnType<typeof groupBy>;
   byAdset: ReturnType<typeof groupBy>;
-  byAd: ReturnType<typeof groupBy>;
   range: DateRange;
 }) {
+  /**
+   * Lead-gen campaigns only. A ThruPlay (video-views) or traffic/"follow me"
+   * campaign cannot produce a lead by design — Meta never optimised delivery
+   * for that — so every metric downstream of registrations (CPL, CPR,
+   * qualification rate, the funnel, the CPL-by-ad chart, the recommendations)
+   * is computed from this slice, never the whole account. Total spend and the
+   * top-line media metrics (impressions, clicks, CPM) stay whole-account —
+   * "how much did I spend, period" is still a fair question regardless of
+   * objective. See objective.ts for the classifier and why this exists.
+   */
+  const { leadGen: leadRows, other: otherRows } = useMemo(() => splitByLeadGen(rows), [rows]);
+  const leadMetrics = useMemo(() => computeMetrics(leadRows), [leadRows]);
+  const dailyLead = useMemo(() => dailySeries(leadRows), [leadRows]);
+  const byAdLead = useMemo(() => groupBy(leadRows, "adName"), [leadRows]);
+  const nonLeadGenSpend = useMemo(() => otherRows.reduce((s, r) => s + r.spend, 0), [otherRows]);
+
   if (!metrics.days) {
     return (
       <Card>
@@ -482,22 +500,40 @@ function Overview({
     registrations: d.registrations,
   }));
 
+  const dailyLeadPoints = dailyLead.map((d) => ({
+    date: d.date,
+    spend: d.spend,
+    leads: d.leads,
+    cpl: d.cpl,
+    clicks: d.clicks,
+    impressions: d.impressions,
+    registrations: d.registrations,
+  }));
+
   const prev = previous?.metrics ?? null;
+  const prevLead = previous?.leadMetrics ?? null;
   const compareLabel = previous ? `vs ${describeWindow({ id: "custom", ...previous.window })}` : undefined;
   const d = <K extends keyof typeof metrics>(k: K) =>
     deltaOf(metrics[k] as number | null, (prev?.[k] ?? null) as number | null);
+  const dLead = <K extends keyof typeof leadMetrics>(k: K) =>
+    deltaOf(leadMetrics[k] as number | null, (prevLead?.[k] ?? null) as number | null);
   const spark = (pick: (x: (typeof dailyPoints)[number]) => number | null) => dailyPoints.map(pick);
+  const sparkLead = (pick: (x: (typeof dailyLeadPoints)[number]) => number | null) => dailyLeadPoints.map(pick);
 
   const rank = (g: ReturnType<typeof groupBy>) =>
     g.map((s) => ({ key: s.key, spend: s.metrics.spend, leads: s.metrics.leads, cpl: s.metrics.cpl, ctr: s.metrics.ctr }));
 
+  // The funnel is specifically the lead funnel end to end, so every step —
+  // including impressions and clicks at the top — comes from lead-gen rows.
+  // Mixing full-account impressions with lead-gen-only registrations would mean
+  // the top of the chart and the bottom describe two different populations.
   const funnel = [
-    { label: "Impresiones", value: metrics.impressions, rate: null },
-    { label: "Clics", value: metrics.clicks, rate: metrics.ctr },
-    { label: "Clics en enlace", value: metrics.linkClicks, rate: metrics.clicks ? metrics.linkClicks / metrics.clicks : null },
-    { label: "Vistas de landing", value: metrics.landingPageViews, rate: metrics.linkClicks ? metrics.landingPageViews / metrics.linkClicks : null },
-    { label: "Registrados", value: metrics.registrations, rate: metrics.registrationRate },
-    { label: "Leads cualificados", value: metrics.leads, rate: metrics.qualificationRate },
+    { label: "Impresiones", value: leadMetrics.impressions, rate: null },
+    { label: "Clics", value: leadMetrics.clicks, rate: leadMetrics.ctr },
+    { label: "Clics en enlace", value: leadMetrics.linkClicks, rate: leadMetrics.clicks ? leadMetrics.linkClicks / leadMetrics.clicks : null },
+    { label: "Vistas de landing", value: leadMetrics.landingPageViews, rate: leadMetrics.linkClicks ? leadMetrics.landingPageViews / leadMetrics.linkClicks : null },
+    { label: "Registrados", value: leadMetrics.registrations, rate: leadMetrics.registrationRate },
+    { label: "Leads cualificados", value: leadMetrics.leads, rate: leadMetrics.qualificationRate },
   ];
 
   // One day has no trend to draw — the daily charts would each be a single dot.
@@ -528,28 +564,28 @@ function Overview({
           />
           <KpiTile
             label="Registrados"
-            value={fmtNum(metrics.registrations)}
-            delta={d("registrations")}
+            value={fmtNum(leadMetrics.registrations)}
+            delta={dLead("registrations")}
             {...tile("up-good")}
-            spark={singleDay ? undefined : spark((x) => x.registrations)}
-            sub={`${fmtMoney(metrics.cpr)} por registrado`}
+            spark={singleDay ? undefined : sparkLead((x) => x.registrations)}
+            sub={`${fmtMoney(leadMetrics.cpr)} por registrado · solo lead gen`}
           />
           <KpiTile
             featured
             label="Leads cualificados"
-            value={fmtNum(metrics.leads)}
-            delta={d("leads")}
+            value={fmtNum(leadMetrics.leads)}
+            delta={dLead("leads")}
             {...tile("up-good")}
-            spark={singleDay ? undefined : spark((x) => x.leads)}
-            sub={`${fmtPct(metrics.qualificationRate, 0)} de los registrados · scoring > 3`}
+            spark={singleDay ? undefined : sparkLead((x) => x.leads)}
+            sub={`${fmtPct(leadMetrics.qualificationRate, 0)} de los registrados · scoring > 3`}
           />
           <KpiTile
             featured
             label="Coste por lead total"
-            value={fmtMoney(metrics.cpr)}
-            delta={d("cpr")}
+            value={fmtMoney(leadMetrics.cpr)}
+            delta={dLead("cpr")}
             {...tile("down-good")}
-            sub="gasto ÷ registrados"
+            sub="gasto ÷ registrados · solo lead gen"
           />
         </div>
 
@@ -560,7 +596,7 @@ function Overview({
             delta={d("impressions")}
             {...tile("neutral")}
             spark={singleDay ? undefined : spark((x) => x.impressions)}
-            sub={`CPM ${fmtMoney(metrics.cpm)}`}
+            sub={`CPM ${fmtMoney(metrics.cpm)} · toda la cuenta`}
           />
           <KpiTile
             label="Clics"
@@ -572,21 +608,29 @@ function Overview({
           />
           <KpiTile
             label="Coste por lead cualificado"
-            value={fmtMoney(metrics.cpl)}
-            delta={d("cpl")}
+            value={fmtMoney(leadMetrics.cpl)}
+            delta={dLead("cpl")}
             {...tile("down-good")}
-            spark={singleDay ? undefined : spark((x) => x.cpl)}
-            sub={metrics.leads ? "gasto ÷ leads cualificados" : "sin leads cualificados"}
+            spark={singleDay ? undefined : sparkLead((x) => x.cpl)}
+            sub={leadMetrics.leads ? "gasto ÷ leads cualificados" : "sin leads cualificados"}
           />
           <KpiTile
             label="Tasa de cualificación"
-            value={fmtPct(metrics.qualificationRate, 1)}
-            delta={d("qualificationRate")}
+            value={fmtPct(leadMetrics.qualificationRate, 1)}
+            delta={dLead("qualificationRate")}
             {...tile("up-good")}
-            sub={`${fmtNum(metrics.leads)} de ${fmtNum(metrics.registrations)} registrados`}
+            sub={`${fmtNum(leadMetrics.leads)} de ${fmtNum(leadMetrics.registrations)} registrados`}
           />
         </div>
       </section>
+
+      {nonLeadGenSpend > 0 ? (
+        <div className="text-[11px] text-[var(--text-muted)] -mt-2">
+          Inversión e impresiones son de toda la cuenta. Registrados, leads, CPL y CPR son solo de
+          campañas de generación de leads — {fmtMoney(nonLeadGenSpend, 0)} en otras campañas se
+          detallan en «Qué hacer» más abajo, sin mezclarse en estas cifras.
+        </div>
+      ) : null}
 
       <ActionPlan
         recommendations={useMemo(() => buildRecommendations(rows, currency), [rows, currency])}
@@ -595,26 +639,26 @@ function Overview({
 
       <MetricStrip
         items={[
-          { label: "Alcance", value: fmtNum(metrics.reach), hint: "Personas únicas" },
-          { label: "Frecuencia", value: fmtNum(metrics.frequency, 2), hint: "Impresiones por persona" },
+          { label: "Alcance", value: fmtNum(metrics.reach), hint: "Personas únicas · toda la cuenta" },
+          { label: "Frecuencia", value: fmtNum(metrics.frequency, 2), hint: "Impresiones por persona · toda la cuenta" },
           { label: "Clics únicos", value: fmtNum(metrics.uniqueClicks), hint: `CTR único ${fmtPct(metrics.uniqueCtr, 2)}` },
-          { label: "Clics en enlace", value: fmtNum(metrics.linkClicks), hint: `${fmtPct(metrics.linkClickRate, 0)} de los clics` },
-          { label: "Coste / clic enlace", value: fmtMoney(metrics.costPerLinkClick) },
-          { label: "Vistas de landing", value: fmtNum(metrics.landingPageViews), hint: `${fmtMoney(metrics.costPerLandingPageView)} por vista` },
-          { label: "Llegada a landing", value: fmtPct(metrics.landingArrivalRate, 0), hint: "Vistas ÷ clics en enlace" },
-          { label: "Registro por vista", value: fmtPct(metrics.registrationRate, 1), hint: "Registrados ÷ vistas de landing" },
+          { label: "Clics en enlace (leads)", value: fmtNum(leadMetrics.linkClicks), hint: `${fmtPct(leadMetrics.linkClickRate, 0)} de los clics de esas campañas` },
+          { label: "Coste / clic enlace", value: fmtMoney(leadMetrics.costPerLinkClick), hint: "solo campañas de leads" },
+          { label: "Vistas de landing", value: fmtNum(leadMetrics.landingPageViews), hint: `${fmtMoney(leadMetrics.costPerLandingPageView)} por vista · solo leads` },
+          { label: "Llegada a landing", value: fmtPct(leadMetrics.landingArrivalRate, 0), hint: "Vistas ÷ clics en enlace · solo leads" },
+          { label: "Registro por vista", value: fmtPct(leadMetrics.registrationRate, 1), hint: "Registrados ÷ vistas de landing" },
         ]}
       />
 
-      <ArrivalWarning m={metrics} />
+      <ArrivalWarning m={leadMetrics} />
 
-      <Highlights byAd={byAd} account={metrics} />
+      <Highlights byAd={byAdLead} account={leadMetrics} />
 
       <section>
         <SectionTitle eyebrow="Dónde se encarece" title="Coste paso a paso y ritmo" />
         <div className="grid lg:grid-cols-2 gap-3 items-start">
-          <CostLadder m={metrics} />
-          <Pacing m={metrics} daily={dailyPoints} />
+          <CostLadder m={leadMetrics} />
+          <Pacing m={leadMetrics} daily={dailyLeadPoints} />
         </div>
       </section>
 
@@ -624,32 +668,42 @@ function Overview({
           <div className="grid lg:grid-cols-3 gap-3 items-start">
             <SpendChart data={dailyPoints} />
             <QualityChart
-              data={dailyPoints.map((d) => ({
+              data={dailyLeadPoints.map((d) => ({
                 date: d.date,
                 registrations: d.registrations,
                 leads: d.leads,
                 qualificationRate: d.registrations ? d.leads / d.registrations : null,
               }))}
             />
-            <CplTrendChart data={dailyPoints} />
+            <CplTrendChart data={dailyLeadPoints} />
           </div>
         </section>
       ) : null}
 
       <section>
-        <SectionTitle eyebrow="Estructura" title="Dónde va el dinero" />
+        <SectionTitle
+          eyebrow="Estructura"
+          title="Dónde va el dinero"
+          right={
+            nonLeadGenSpend > 0 ? (
+              <span className="text-[11px] text-[var(--text-muted)]">
+                incluye {fmtMoney(nonLeadGenSpend, 0)} fuera del embudo de leads
+              </span>
+            ) : undefined
+          }
+        />
         <div className="grid lg:grid-cols-2 gap-3 items-start">
-          <SpendByChart title="Inversión por campaña" hint="Ordenado por gasto. La etiqueta es lo invertido." data={rank(byCampaign)} />
-          <SpendByChart title="Inversión por conjunto" hint="Los 8 conjuntos con más gasto." data={rank(byAdset)} />
+          <SpendByChart title="Inversión por campaña" hint="Ordenado por gasto, toda la cuenta. La etiqueta es lo invertido." data={rank(byCampaign)} />
+          <SpendByChart title="Inversión por conjunto" hint="Los 8 conjuntos con más gasto, toda la cuenta." data={rank(byAdset)} />
         </div>
       </section>
 
       <section>
-        <SectionTitle eyebrow="Diagnóstico" title="Embudo y anuncios" />
+        <SectionTitle eyebrow="Diagnóstico" title="Embudo y anuncios de generación de leads" />
         <div className="grid lg:grid-cols-2 gap-3 items-start">
           <CplByAdChart
-            average={metrics.cpl}
-            data={byAd.map((a) => ({
+            average={leadMetrics.cpl}
+            data={byAdLead.map((a) => ({
               adName: a.key,
               cpl: a.metrics.cpl,
               leads: a.metrics.leads,
@@ -658,10 +712,10 @@ function Overview({
             }))}
           />
           <FunnelChart stages={funnel} />
-          <LeadsChart data={dailyPoints} />
+          <LeadsChart data={dailyLeadPoints} />
           <AdScatter
-            data={byAd.map((a) => ({ adName: a.key, spend: a.metrics.spend, cpl: a.metrics.cpl, leads: a.metrics.leads }))}
-            avgCpl={metrics.cpl}
+            data={byAdLead.map((a) => ({ adName: a.key, spend: a.metrics.spend, cpl: a.metrics.cpl, leads: a.metrics.leads }))}
+            avgCpl={leadMetrics.cpl}
           />
         </div>
       </section>

@@ -11,6 +11,7 @@ const TONE: Record<Severity, { color: string; icon: string; label: string }> = {
   serious: { color: "var(--status-serious)", icon: "▲", label: "Importante" },
   warning: { color: "var(--status-warning)", icon: "▲", label: "Vigilar" },
   good: { color: "var(--status-good)", icon: "▲", label: "Oportunidad" },
+  info: { color: "var(--text-muted)", icon: "○", label: "Informativo" },
 };
 
 /**
